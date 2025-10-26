@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Secure Web Steganography Tool</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3064/3064197.png">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #007bff, #00b4d8);
+      color: #333;
+    }
+    header {
+      text-align: center;
+      padding: 60px 20px 40px;
+      color: white;
+    }
+    header h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+    header p {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+    .container {
+      max-width: 650px;
+      background: white;
+      margin: 30px auto;
+      padding: 30px 25px;
+      border-radius: 20px;
+      box-shadow: 0 5px 25px rgba(0,0,0,0.15);
+    }
+    h2 {
+      color: #007bff;
+    }
+    input[type="file"], input[type="password"], textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: none;
+      height: 80px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    hr {
+      margin: 25px 0;
+      border: none;
+      height: 2px;
+      background: #e0e0e0;
+    }
+    #output {
+      word-wrap: break-word;
+      background: #f0f7ff;
+      padding: 10px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: white;
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔐 Secure Web Steganography Tool</h1>
+    <p>Hide your secret messages inside images with password protection — all in your browser!</p>
+  </header>
+
+  <div class="container">
+    <h2>🖊️ Hide a Message</h2>
+    <input type="file" id="imageInput" accept="image/*"><br>
+    <textarea id="message" placeholder="Enter your secret message..."></textarea>
+    <input type="password" id="password" placeholder="Enter password">
+    <button onclick="encode()">Hide Message in Image</button>
+
+    <hr>
+
+    <h2>🔎 Extract a Message</h2>
+    <input type="file" id="stegoInput" accept="image/*"><br>
+    <input type="password" id="passwordDecode" placeholder="Enter password">
+    <button onclick="decode()">Extract Hidden Message</button>
+    <p id="output"></p>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <footer>
+    © 2025 Secure Web Steganography Tool | Made by [Your Name]
+  </footer>
+
+  <!-- CryptoJS library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // Encode function
+    function encode() {
+      const file = document.getElementById("imageInput").files[0];
+      const message = document.getElementById("message").value;
+      const password = document.getElementById("password").value;
+
+      if (!file || !message || !password) {
+        alert("Please select an image, enter a message, and set a password.");
+        return;
+      }
+
+      const encrypted = CryptoJS.AES.encrypt(message, password).toString();
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = function () {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+          const pixels = imgData.data;
+
+          const binaryMessage = toBinary(encrypted) + "00000000";
+          let msgIndex = 0;
+
+          for (let i = 0; i < pixels.length; i += 4) {
+            if (msgIndex < binaryMessage.length) {
+              pixels[i] = (pixels[i] & 0xFE) | parseInt(binaryMessage[msgIndex]);
+              msgIndex++;
+            }
+          }
+
+          ctx.putImageData(imgData, 0, 0);
+          const stegoURL = canvas.toDataURL();
+          const link = document.createElement("a");
+          link.download = "stego_image.png";
+          link.href = stegoURL;
+          link.click();
+          alert("✅ Message encrypted and hidden successfully!");
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Decode function
+    function decode() {
+      const file = document.getElementById("stegoInput").files[0];
+      const password = document.getElementById("passwordDecode").value;
+
+      if (!file || !password) {
+        alert("Please select a stego image and enter the password.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = function () {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+          const pixels = imgData.data;
+
+          let binaryMessage = "";
+          for (let i = 0; i < pixels.length; i += 4) {
+            binaryMessage += (pixels[i] & 1).toString();
+          }
+
+          const encryptedMessage = fromBinary(binaryMessage);
+          try {
+            const decrypted = CryptoJS.AES.decrypt(encryptedMessage, password);
+            const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
+
+            if (plaintext) {
+              document.getElementById("output").innerText =
+                "🔓 Decrypted Message: " + plaintext;
+            } else {
+              document.getElementById("output").innerText =
+                "❌ Incorrect password or no message found.";
+            }
+          } catch (err) {
+            document.getElementById("output").innerText =
+              "❌ Failed to decrypt. Wrong password or corrupted image.";
+          }
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Binary helpers
+    function toBinary(text) {
+      return text.split("")
+        .map((char) => char.charCodeAt(0).toString(2).padStart(8, "0"))
+        .join("");
+    }
+
+    function fromBinary(binary) {
+      let text = "";
+      for (let i = 0; i < binary.length; i += 8) {
+        const byte = binary.slice(i, i + 8);
+        const charCode = parseInt(byte, 2);
+        if (charCode === 0) break;
+        text += String.fromCharCode(charCode);
+      }
+      return text;
+    }
+  </script>
+</body>
+</html>
